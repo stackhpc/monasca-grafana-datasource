@@ -1,5 +1,5 @@
 <query-editor-row query-ctrl="ctrl" can-collapse="false">
-    <div>
+    <div ng-if="ctrl.datasource.service.metrics">
         <div class="gf-form-inline">
             <div class="gf-form gf-form--grow">
                 <label class="gf-form-label query-keyword width-7">Metric</label>
@@ -51,7 +51,7 @@
                     ng-blur="ctrl.targetBlur()"
                     data-min-length=0
                     style="margin-right:0">
-                <label class="gf-form-label"">
+                <label class="gf-form-label">
                     <a class="pointer" ng-click="ctrl.removeDimension($index)"><i class="fa fa-close"></i></a>
                 </label>
             </div>
@@ -96,4 +96,74 @@
             </div>
         </div>
     </div>
+	<div ng-if="ctrl.datasource.service.logs">
+		<div class="gf-form-inline">
+			<div class="gf-form">
+				<label class="gf-form-label query-keyword width-7">Dimensions</label>
+			</div>
+			<div class="gf-form" ng-repeat="dimension in ctrl.target.dimensions track by $index">
+				<input
+					 type="text"
+					 class="gf-form-input max-width-7"
+					 placeholder="key"
+					 ng-model="dimension.key"
+					 ng-blur="ctrl.targetBlur()"
+					 data-min-length=0
+					 style="margin-right:0">
+				<label class="gf-form-label query-segment-operator" style="margin-right:0">=</label>
+				<input
+					 type="text"
+					 class="gf-form-input max-width-7"
+					 placeholder="value"
+					 ng-model="dimension.value"
+					 ng-focus="ctrl.editDimension($index)"
+					 ng-blur="ctrl.targetBlur()"
+					 data-min-length=0
+					 style="margin-right:0">
+				<label class="gf-form-label">
+					<a class="pointer" ng-click="ctrl.removeDimension($index)"><i class="fa fa-close"></i></a>
+				</label>
+			</div>
+			<div class="gf-form">
+				<label class="gf-form-label">
+					<a class="pointer" ng-click="ctrl.addDimension()"><i class="fa fa-plus"></i></a>
+				</label>
+			</div>
+			<div class="gf-form gf-form--grow">
+				<div class="gf-form-label gf-form-label--grow"></div>
+			</div>
+		</div>	
+		<div class="gf-form-inline">
+			<div class="gf-form">
+				<label class="gf-form-label query-keyword width-7">Sort By</label>
+				<div class="gf-form-select-wrapper">
+					<select
+						 class="gf-form-input"
+						 ng-model="ctrl.target.sort_by.field"
+						 ng-change="ctrl.targetBlur()"
+						 ng-options="f for f in ['none','timestamp']">
+					</select>
+				</div>
+				<div class="gf-form-select-wrapper" ng-hide="ctrl.target.sort_by.field=='none'">
+					<select
+						 class="gf-form-input"
+						 ng-model="ctrl.target.sort_by.direction"
+						 ng-change="ctrl.targetBlur()"
+						 ng-options="f for f in ['asc','desc']">
+					</select>
+				</div>
+			</div>			
+			<div class="gf-form">
+				<label class="gf-form-label query-keyword">Limit</label>
+				<input
+					 type="text"
+					 class="gf-form-input max-width-7"
+					 ng-model="ctrl.target.limit"
+					 ng-blur="ctrl.targetBlur()">
+			</div>
+			<div class="gf-form gf-form--grow">
+				<div class="gf-form-label gf-form-label--grow"></div>
+			</div>
+		</div>
+	</div>
 </query-editor-row>

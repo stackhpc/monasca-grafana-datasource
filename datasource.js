@@ -16,9 +16,18 @@ function (angular, _, moment, sdk, dateMath, kbn) {
     this.url = instanceSettings.url;
     this.name = instanceSettings.name;
 
+    // Default to metrics service if no configuration exists.
+    this.service = { metrics: true, logs: false };
+    
     if (instanceSettings.jsonData) {
       this.token = instanceSettings.jsonData.token;
       this.keystoneAuth = instanceSettings.jsonData.keystoneAuth;
+      
+      if (instanceSettings.jsonData.service) {
+        this.service.metrics = instanceSettings.jsonData.service == 'monasca-api';
+        this.service.logs = instanceSettings.jsonData.service == 'monasca-log-api';
+      }
+
     } else {
       this.token = null;
       this.keystoneAuth = null;
@@ -39,10 +48,18 @@ function (angular, _, moment, sdk, dateMath, kbn) {
     var targets_list = [];
     for (var i = 0; i < options.targets.length; i++) {
       var target = options.targets[i];
-      if (target.error || target.hide || !target.metric) {
+      if (target.error || target.hide || (this.service.metrics && !target.metric)) {
         continue;
       }
-      var query = this.buildDataQuery(options.targets[i], from, to);
+      
+      var query;
+      if (this.service.logs) {
+        query = this.buildLogsQuery(options.targets[i], from, to);
+      }
+      if (this.service.metrics) {
+        query = this.buildDataQuery(options.targets[i], from, to);
+      }
+      
       query = self.templateSrv.replace(query, options.scopedVars);
       var query_list = this.expandTemplatedQueries(query);
       // Pre query aliasing
@@ -57,8 +74,13 @@ function (angular, _, moment, sdk, dateMath, kbn) {
 
     var promises = self.q.resolve(targets_promise).then(function(targets) {
       return targets.map(function (target) {
-        target = datasource.convertPeriod(target);
-        return datasource._limitedMonascaRequest(target, {}, true).then(datasource.convertDataPoints).catch(function(err) {throw err;});
+        if (datasource.service.logs) {
+          return datasource._monascaRequest(target, {}, true).then(datasource.convertDataLogs).catch(function(err) {throw err;});
+        }
+        if (datasource.service.metrics) {
+          target = datasource.convertPeriod(target);
+          return datasource._limitedMonascaRequest(target, {}, true).then(datasource.convertDataPoints).catch(function(err) {throw err;});
+        }
       });
     }).catch(function(err) {throw err;});
 
@@ -157,6 +179,57 @@ function (angular, _, moment, sdk, dateMath, kbn) {
     path += Object.keys(params).map(function(key) {
       return key + '=' + params[key];
     }).join('&');
+    return path;
+  };
+
+  MonascaDatasource.prototype.buildLogsQuery = function(options, from, to) {
+    var params = {};
+    params.start_time = from;
+    if (to) {
+      params.end_time = to;
+    }
+    if (options.dimensions) {
+      var dimensions = '';
+      for (var i = 0; i < options.dimensions.length; i++) {
+        var key = options.dimensions[i].key;
+        var value = options.dimensions[i].value;
+        if (value == '$all') {
+          continue;
+        }
+        if (dimensions) {
+          dimensions += ',';
+        }
+        dimensions += key;
+        dimensions += ':';
+        dimensions += value;
+      }
+      params.dimensions = dimensions;
+    }
+
+    params.limit = options.limit || 100;
+
+    if (!options.sort_by) {
+      params.sort_by = 'timestamp desc';
+    }
+    else if (options.sort_by.field != 'none') {
+      params.sort_by = options.sort_by.field + ' ' + options.sort_by.direction;
+    }
+    
+    var path = '/v3.0/logs'
+
+    var first = true;
+    Object.keys(params).forEach(function (key) {
+      if (first) {
+        path += '?';
+        first = false;
+      }
+      else {
+        path += '&';
+      }
+      path += key;
+      path += '=';
+      path += params[key];
+    });
     return path;
   };
 
@@ -262,6 +335,10 @@ function (angular, _, moment, sdk, dateMath, kbn) {
       results.push(convertedData);
     }
     return results;
+  };
+
+  MonascaDatasource.prototype.convertDataLogs = function(data) {
+    return [ { 'target': 'docs', 'type': 'docs', 'datapoints': data.data.elements } ];
   };
 
   // For use with specified or api enforced limits.
@@ -410,9 +487,16 @@ function (angular, _, moment, sdk, dateMath, kbn) {
 
   // Called by grafana to test the datasource
   MonascaDatasource.prototype.testDatasource = function() {
-    return this.namesQuery().then(function () {
-      return { status: 'success', message: 'Data source is working', title: 'Success' };
-    });
+    if (this.service.metrics) {
+      return this.namesQuery().then(function () {
+        return { status: 'success', message: 'Data source is working', title: 'Success' };
+      });
+    }
+    if (this.service.logs) {
+      return this._monascaRequest('/v3.0/logs', { limit: 1 }).then(function () {
+        return { status: 'success', message: 'Data source is working', title: 'Success' };
+      });
+    }
   };
 
   MonascaDatasource.prototype.translateTime = function(date) {

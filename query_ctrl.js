@@ -19,18 +19,35 @@ function (angular, _, sdk) {
       this.uiSegmentSrv = uiSegmentSrv;
       this.templateSrv = templateSrv;
 
-      if (!this.target.aggregator) {
-        this.target.aggregator = 'avg';
-      }
-      if (!this.target.period) {
-        this.target.period = '300';
+      if (this.datasource.service.metrics) {
+        if (!this.target.aggregator) {
+          this.target.aggregator = 'avg';
+        }
+        if (!this.target.period) {
+          this.target.period = '300';
+        }
       }
       if (!this.target.dimensions) {
         this.target.dimensions = [];
       }
 
+      if (this.datasource.service.logs) {
+        if (!this.target.sort_by) {
+          this.target.sort_by = {};
+        }
+        if (!this.target.sort_by.field) {
+          this.target.sort_by.field = 'timestamp';
+        }
+        if (!this.target.sort_by.direction) {
+          this.target.sort_by.direction = 'desc';
+        }
+        if (!this.target.limit) {
+          this.target.limit = 100;
+        }
+      }
+
       this.validateTarget();
-      if (this.target.metric) {
+      if (this.target.metric || this.datasource.service.logs) {
         this.resetDimensionList();
       }
 
@@ -52,11 +69,13 @@ function (angular, _, sdk) {
 
     MonascaQueryCtrl.prototype.validateTarget = function() {
       this.target.error = "";
-      if (!this.target.metric) {
-        this.target.error = "No metric specified";
-      }
-      if (this.target.aggregator != 'none' && !this.target.period) {
-        this.target.error = "You must supply a period when using an aggregator";
+      if (this.datasource.service.metrics) {
+        if (!this.target.metric) {
+          this.target.error = "No metric specified";
+        }
+        if (this.target.aggregator != 'none' && !this.target.period) {
+          this.target.error = "You must supply a period when using an aggregator";
+        }
       }
       for (var i = 0; i < this.target.dimensions.length; i++) {
         if (!this.target.dimensions[i].key) {
@@ -66,6 +85,11 @@ function (angular, _, sdk) {
         if (!this.target.dimensions[i].value){
           this.target.error = "One or more dimensions is missing a value";
           break;
+        }
+      }
+      if (this.datasource.service.logs) {
+        if (!this.target.limit) {
+          this.target.error = "You must supply a limit when fetching logs";
         }
       }
       if (this.target.error) {
